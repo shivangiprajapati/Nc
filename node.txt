@@ -1,0 +1,512 @@
+(npm init 
+ npm install --save mongoose
+ npm install --save ejs
+ npm install --save jsonwebtoken
+ npm install --save cookie-parse
+ npm install --save bcryptjs
+ npm install --save cors
+
+( MODEL, views , controllers)
+
+-----------Model -> User.js (file)---------------------- 
+
+const mongoose = require ('mongoose');
+const UserSchema = new mongoose.Schema({
+    name : {
+        type : String,
+        required : true
+    },
+    email : {
+        type : String,
+        required : true
+    },
+    password : {
+        type : String,
+        required : true
+    }
+});
+
+module.exports = mongoose.model('user',UserSchem);
+
+-------------model -> Student.js---------------------
+
+const { default: mongoose } = require('mongoose');
+const mondoose = require ('mongoose');
+const StudentSchema = mongoose.Schema({
+    name : {
+        type : String
+    },
+    email : {
+        type : String
+    },
+    class : {
+        type : String,
+        require : true 
+    },
+    Semester : {
+        type : Number,
+        required : true
+    }
+});
+
+module.exports = mongoose.model('Student',StudentSchema);
+
+
+-------------Controllers file (UserController.js)------------------------------------
+
+const User = require('../Models/User');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+module.exports.login_page = (req,res) => {
+    res.render('login');
+};
+
+module.exports.register_page = (req,res) => {
+    res.render('register');
+};
+
+module.exports.user_register = (req,res) => {
+    let user = new User({
+        name: req.body.name,
+        email: req.body.email,
+        password: bcrypt.hashSync(req.body.password)
+    });
+
+    user.save((err,doc)=>{
+        if(err){
+            res.json(err);
+        }else{
+            res.redirect('/');
+        }
+    });
+};
+
+module.exports.user_login = (req,res) => {
+    User.findOne({email: req.body.email},(err, user) => {
+        if(err){
+            res.json(err);
+        }
+        if(!user){
+            res.json({message: 'User not found'});
+        }else{
+            let validatepassword = bcrypt.compare(req.body.password, user.password,(err,isMatch)=>{
+                if(err){
+                    res.json(err);
+                }
+                if(isMatch){
+                    let token = jwt.sign({id: user._id}, 'abc123', {expiresIn: '1h'});
+                    res.cookie('authtoken', token, {maxAge: 360000, httpOnly: true});
+                    res.redirect('/students');
+                }else{
+                    res.json({message: 'Password not matched'});
+                }
+            });
+        }
+    });
+};
+
+module.exports.user_logout = (req,res) => {
+    res.clearCookie('authtoken');
+    res.redirect('/');
+};
+
+------------------Controller file(Student Controller.js)----------------------------------------------------------------
+
+const Student = require('../Models/Student');
+
+module.exports.get_all_students = (req,res) => {
+    Student.find((err,students) => {
+        if(err){
+            res.json(err);
+        } else {
+            if(!students){
+                res.json({message: 'No students found'});
+            } else {
+                res.render('student', {students: students});
+            }
+        }
+    })
+};
+
+module.exports.add_student = (req,res) => {
+    let student = new Student({
+        name: req.body.name,
+        email: req.body.email,
+        class: req.body.class,
+        semester: req.body.semester
+    });
+
+    student.save((err,doc) => {
+        if(err){
+            res.json(err);
+        } else {
+            res.json({message: 'Student added successfully'});
+        }
+    });
+};
+
+module.exports.add_student_page = (req,res) => {
+    res.render('addstudent');
+};
+
+module.exports.update_student_page = (req,res) => {
+    Student.findOne({_id: req.params.id},(err, student) => {
+        if(err){
+            res.json(err);
+        }else{
+            if(!student){
+                res.json({message: 'Student not found'});
+            }else{
+                res.render('updatestudent', {student: student});
+            }
+        }
+    });
+};
+
+module.exports.update_student = (req,res) => {
+    Student.findOne({_id: req.params.id},(err, student) => {
+        if(err){
+            res.json(err);
+        }else {
+            if(!student){
+                res.json({message: 'Student not found'});
+            }else{
+                student.name = req.body.name;
+                student.email = req.body.email;
+                student.class = req.body.class;
+                student.semester = req.body.semester;
+
+                student.save((err,doc) => {
+                    if(err){
+                        res.json(err);
+                    }else{
+                        res.json({message: 'Student updated successfully'});
+                    }
+                })
+            }
+        }
+    });
+}
+
+module.exports.delete_student_page = (req,res) => {
+    Student.findOne({_id: req.params.id},(err,student) => {
+        if(err){
+            res.json(err);
+        }else{
+            if(!student){
+                res.jsone({message: 'Student not found'});
+            }else{
+                res.render('deletestudent', {student: student});
+            }
+        }
+    });
+};
+
+module.exports.delete_student = (req,res) => {
+    Student.findOne({_id: req.params.id},(err,student)=> {
+        if(err){
+            res.json(err);
+        }else{
+            if(!student){
+                res.json({message: 'Student not found'});
+            }else{
+                student.remove((err,doc) => {
+                    if(err){
+                        res.json(err);
+                    }else{
+                        res.json({message: 'Student deleted successfully'});
+                    }
+                })
+            }
+        }
+    });
+};
+
+-------------------------View (file )-> register.ejs------------------------------
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <title>Document</title>
+</head>
+<body>
+    <h3>Register</h3>
+    <form action="/register" method="POST">
+        <input type="text" name="name" placeholder="Name">
+        <input type="email" name="email" placeholder="Email">
+        <input type="password" name="password" placeholder="Password">
+        <input type="submit" value="Register">
+        <a href="/login">Login</a>
+    </form>
+</body>
+</html>
+
+------------------------view (file )-> Login.ejs---------------------
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <title>Document</title>
+</head>
+<body>
+    <h3>Login</h3>
+    <form action="/login" method="POST">
+        <input type="email" name="email" placeholder="Email">
+        <input type="password" name="password" placeholder="Password">
+        <input type="submit" value="Login">
+        <a href="/register">Register</a>
+    </form>
+</body>
+</html>
+
+------------------------View (file)-> Student.ejs----------------------
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <title>Document</title>
+</head>
+<body>
+    <h3>Student List</h3>
+    <button type="button" onclick="window.location.href='/addstudent'">Add New Student</button>
+    <button type="button" onclick="window.location.href='/logout'">Logout</button>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Student Name</th>
+                <th>Student Email</th>
+                <th>Student Class</th>
+                <th>Student Semester</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% if(students.length == 0){%>
+                <tr>
+                    <td colspan="5">No Students Found</td>
+                </tr>
+            <% } %>
+            <% for(var i=0; i<students.length; i++) { %>
+                <tr>
+                    <td><%= students[i].name %></td>
+                    <td><%= students[i].email %></td>
+                    <td><%= students[i].class %></td>
+                    <td><%= students[i].semester %></td>
+                    <td>
+                        <a href="/updatestudent/<%= students[i]._id %>">Update</a>
+                        <a href="/deletestudent/<%= students[i]._id %>">Delete</a>
+                    </td>
+                </tr>
+            <% } %>
+        </tbody>
+    </table>
+</body>
+</html>
+
+-------------------------------View (file)-> updatestudent.ejs------------------------------------
+
+<!-- student update form -->
+<html>
+<head>
+    <title>Update Student</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <!-- update student on form submit -->
+    <script>
+        $(document).ready(function(){
+            $("#updatestudent").submit(function(event){
+                event.preventDefault();
+                var student = {
+                    name: $("#name").val(),
+                    email: $("#email").val(),
+                    class: $("#class").val(),
+                    semester: $("#semester").val()
+                }
+                $.ajax({
+                    url: "/students/<%= student._id %>",
+                    type: "PUT",
+                    data: student,
+                    success: function(result){
+                        window.location.href = "/students";
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <h3>Update Student</h3>
+    <form id="updatestudent">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="<%= student.name %>">
+        <label for="email">Email</label>
+        <input type="text" id="email" name="email" value="<%= student.email %>">
+        <label for="class">Class</label>
+        <input type="text" id="class" name="class" value="<%= student.class %>">
+        <label for="semester">Semester</label>
+        <input type="text" id="semester" name="semester" value="<%= student.semester %>">
+        <input type="submit" value="Update">
+    </form>
+</body>
+</html>
+
+----------------------------------View (file)-> addstudent.ejs-----------------------------
+
+<!-- Form to add new student -->
+<html>
+<head>
+    <title>Add Student</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <!-- add student on form submit -->
+    <script>
+        $(document).ready(function(){
+            $("#addstudent").submit(function(event){
+                event.preventDefault();
+                var student = {
+                    name: $("#name").val(),
+                    email: $("#email").val(),
+                    class: $("#class").val(),
+                    semester: $("#semester").val()
+                }
+                $.ajax({
+                    url: "/students",
+                    type: "POST",
+                    data: student,
+                    success: function(result){
+                        window.location.href = "/students";
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <h3>Add New Student</h3>
+    <form id="addstudent">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="Your name..">
+        <label for="email">Email</label>
+        <input type="text" id="email" name="email" placeholder="Your email..">
+        <label for="class">Class</label>
+        <input type="text" id="class" name="class" placeholder="Your class..">
+        <label for="semester">Semester</label>
+        <input type="text" id="semester" name="semester" placeholder="Your semester..">
+        <input type="submit" value="Submit">
+    </form>
+</body>
+</html>
+
+-----------------------------------------------View(file)-> deletestudent.ejs----------------------------------
+
+<!--student delete confirmation-->
+<html>
+<head>
+    <title>Delete Student</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <!-- delete student on form submit -->
+    <script>
+        $(document).ready(function(){
+            $("#deletestudent").submit(function(event){
+                event.preventDefault();
+                $.ajax({
+                    url: "/students/<%= student._id %>",
+                    type: "DELETE",
+                    success: function(result){
+                        window.location.href = "/students";
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <h3>Delete Student</h3>
+    <form id="deletestudent">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" value="<%= student.name %>" readonly>
+        <label for="email">Email</label>
+        <input type="text" id="email" name="email" value="<%= student.email %>" readonly>
+        <label for="class">Class</label>
+        <input type="text" id="class" name="class" value="<%= student.class %>" readonly>
+        <label for="semester">Semester</label>
+        <input type="text" id="semester" name="semester" value="<%= student.semester %>" readonly>
+        <input type="submit" value="Delete">
+    </form>
+</body>
+</html>
+
+------------------------------------Node (file) app.js----------------------------------
+
+const express = require('express');
+const app = express();
+const jwt = require('jsonwebtoken');
+const cors = require('cors');
+const mongoose = require('mongoose');
+
+const StudentController = require('./Controllers/StudentControllor');
+const UserController = require('./Controllers/UserControllor');
+const cookieParser = require('cookie-parser');
+
+app.use(express.urlencoded({extended: false}));
+app.use(express.json());
+app.use(cookieParser());
+app.use(cors());
+app.set('view engine','ejs');
+
+mongoose.connect('mongodb://localhost:27017/studentdb', (err)=> {
+    if(err){
+        console.log(err);
+    }else{
+        console.log('Database connected');
+    }
+});
+
+app.get('/',UserController.login_page);
+app.post('/login',UserController.user_login);
+app.get('/logout',UserController.user_logout);
+app.get('/register',UserController.register_page);
+app.post('/register',UserController.user_register);
+
+app.use((req,res,next) => {
+    let token = req.cookies.authtoken;
+    if(token){
+        jwt.verify(token, 'abc123', (err,decoded)=>{
+            if(err){
+                res.json(err);
+            }else{
+                next();
+            }
+        });
+    }
+});
+
+app.get('/students',StudentController.get_all_students);
+app.get('/addstudent',StudentController.add_student_page);
+app.post('/students',StudentController.add_student);
+app.get('/updatestudent/:id',StudentController.update_student_page);
+app.put('/students/:id',StudentController.update_student);
+app.get('/deletestudent/:id',StudentController.delete_student_page);
+app.delete('/students/:id',StudentController.delete_student);
+
+
+app.listen(3000,()=>{
+    console.log('Server started at port 3000');
+});
+
+
+
+
